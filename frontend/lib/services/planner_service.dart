@@ -4,6 +4,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'activity_service.dart';
+import 'package:flutter/material.dart';
 
 /// Represents a single cyber task in the planner.
 class CyberTask {
@@ -67,7 +69,6 @@ class CyberTask {
 }
 
 class PlannerService extends ChangeNotifier {
-  static const String _storageKey = 'cyber_planner_tasks';
   List<CyberTask> _tasks = [];
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
@@ -130,9 +131,16 @@ class PlannerService extends ChangeNotifier {
     await androidPlugin?.createNotificationChannel(channel);
   }
 
-  Future<void> _loadTasks() async {
+  Future<String> _getStorageKey() async {
     final prefs = await SharedPreferences.getInstance();
-    final jsonStr = prefs.getString(_storageKey);
+    final username = prefs.getString('cached_display_name') ?? 'guest';
+    return 'cyber_planner_tasks_$username';
+  }
+
+  Future<void> _loadTasks() async {
+    final key = await _getStorageKey();
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = prefs.getString(key);
     if (jsonStr != null) {
       final List<dynamic> decoded = json.decode(jsonStr);
       _tasks = decoded.map((e) => CyberTask.fromJson(e)).toList();
@@ -140,9 +148,10 @@ class PlannerService extends ChangeNotifier {
   }
 
   Future<void> _saveTasks() async {
+    final key = await _getStorageKey();
     final prefs = await SharedPreferences.getInstance();
     final jsonStr = json.encode(_tasks.map((t) => t.toJson()).toList());
-    await prefs.setString(_storageKey, jsonStr);
+    await prefs.setString(key, jsonStr);
   }
 
   void _markMissedTasks() {
@@ -162,6 +171,7 @@ class PlannerService extends ChangeNotifier {
     } catch (e) {
       debugPrint("Failed to schedule reminder: $e");
     }
+    ActivityService().logActivity(Icons.schedule, Colors.yellow, 'Scheduled task: ${task.title}');
     notifyListeners();
   }
 
@@ -190,6 +200,7 @@ class PlannerService extends ChangeNotifier {
       _tasks[index].completedAt = DateTime.now();
       await _cancelReminder(_tasks[index]);
       await _saveTasks();
+      ActivityService().logActivity(Icons.check_circle, Colors.green, 'Completed task: ${_tasks[index].title}');
       notifyListeners();
     }
   }

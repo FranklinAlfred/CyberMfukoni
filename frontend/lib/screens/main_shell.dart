@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../widgets/dock_nav_bar.dart';
+import '../widgets/guardian_dialog.dart';
+import '../services/auth_service.dart';
+import '../utils/auth_helper.dart';
 import 'dashboard_screen.dart';
 import 'boma_screen.dart';
 import 'vault_screen.dart';
@@ -64,8 +67,28 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
-  void _onDockTap(int index) {
+  void _onDockTap(int index) async {
     if (index == _currentIndex) return;
+
+    if (AuthService().isOfflineMode) {
+      if (index == 2 || index == 5 || index == 8) {
+        GuardianDialog.show(
+          context,
+          title: 'Feature Unavailable',
+          message: 'You are currently offline. Please connect to the internet and log in online to use this feature.',
+          icon: Icons.wifi_off_rounded,
+          color: Colors.orangeAccent,
+          primaryButtonText: 'OK',
+        );
+        return;
+      }
+    }
+
+    if (index == 1) {
+      final ok = await AuthHelper.authenticate(context);
+      if (!ok || !mounted) return;
+    }
+
     setState(() => _currentIndex = index);
   }
 
@@ -83,7 +106,7 @@ class _MainShellState extends State<MainShell> {
             index: _currentIndex,
             children: [
               const VaultScreen(), // 0: Vault
-              const SecureModulesScreen(), // 1: Secure Modules (was Boma)
+              SecureModulesScreen(onNavigate: _onDockTap), // 1: Secure Modules (was Boma)
               MulikaScreen(onNavigate: _onDockTap), // 2: Mulika
               DashboardScreen(onNavigate: _onDockTap), // 3: Home
               const IntelFeedScreen(), // 4: Intel Feed

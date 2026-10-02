@@ -258,157 +258,148 @@ class _ChonjoLevelsScreenState extends State<ChonjoLevelsScreen>
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Logo + brand text, exactly as in the reference screenshots
-          Image.asset('assets/images/logo.webp', height: 140),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-          ),
-          const Spacer(),
+    return SizedBox(
+      height: 140,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+        child: Stack(
+          children: [
+            // Logo on the left
+            Positioned(
+              left: 0,
+              top: 0,
+              child: Image.asset('assets/images/logo.webp', height: 130),
+            ),
 
-          // Right side grouped in a Column to prevent overflow
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Top row: XP Badge & Close Button
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Total XP Badge
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.45),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: kCyberGreen.withOpacity(0.3),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: kCyberGreen.withOpacity(0.15),
-                              blurRadius: 12,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: kCyberGreen,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: kCyberGreen.withOpacity(0.6),
-                                    blurRadius: 6,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '$_totalXp XP',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                                color: kCyberGreen,
-                                shadows: [
-                                  Shadow(
-                                    color: kCyberGreen.withOpacity(0.5),
-                                    blurRadius: 8,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+            // Exit button pinned top-right
+            Positioned(
+              right: 0,
+              top: 0,
+              child: GestureDetector(
+                onTap: () {
+                  if (widget.onNavigate != null) {
+                    widget.onNavigate!(3);
+                  } else {
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    }
+                  }
+                },
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24, width: 1.5),
                   ),
-                  const SizedBox(width: 10),
-                  // Close / back button
-                  GestureDetector(
-                    onTap: () {
-                      if (widget.onNavigate != null) {
-                        widget.onNavigate!(3);
-                      } else {
-                        if (Navigator.canPop(context)) {
-                          Navigator.pop(context);
-                        }
-                      }
-                    },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.3),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white24, width: 1),
-                      ),
-                      child: const Icon(Icons.close, color: Colors.white70, size: 18),
-                    ),
-                  ),
-                ],
+                  child: const Icon(Icons.exit_to_app_rounded, color: Colors.white, size: 24),
+                ),
               ),
-              // Bottom row: Certificate icon (if earned)
-              if (_certEarnedAt != null) ...[
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: _openCertificate,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        context.tr('', fallback: 'Download Certificate'),
-                        style: const TextStyle(
-                          color: Color(0xFFFFD700),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
+            ),
+
+            // XP Badge below exit button
+            Positioned(
+              right: 0,
+              top: 52,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.45),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: kCyberGreen.withOpacity(0.3),
                       ),
-                      const SizedBox(width: 6),
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFFD700), Color(0xFFFFA000)],
+                      boxShadow: [
+                        BoxShadow(
+                          color: kCyberGreen.withOpacity(0.15),
+                          blurRadius: 12,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: kCyberGreen,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: kCyberGreen.withOpacity(0.6),
+                                blurRadius: 6,
+                              ),
+                            ],
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFFFD700).withOpacity(0.5),
-                              blurRadius: 10,
-                              spreadRadius: 1,
-                            ),
-                          ],
                         ),
-                        child: const Icon(
-                          Icons.workspace_premium,
-                          color: Colors.white,
-                          size: 18,
+                        const SizedBox(width: 8),
+                        Text(
+                          '$_totalXp XP',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            color: kCyberGreen,
+                            shadows: [
+                              Shadow(
+                                color: kCyberGreen.withOpacity(0.5),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ],
-          ),
-        ],
+              ),
+            ),
+
+            // Certificate button below XP (if earned)
+            if (_certEarnedAt != null)
+              Positioned(
+                right: 0,
+                top: 96,
+                child: GestureDetector(
+                  onTap: _openCertificate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.45),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFFFD700).withOpacity(0.4),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.workspace_premium,
+                          color: Color(0xFFFFD700),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          context.tr('', fallback: 'Certificate'),
+                          style: const TextStyle(
+                            color: Color(0xFFFFD700),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

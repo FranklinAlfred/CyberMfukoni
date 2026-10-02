@@ -12,6 +12,8 @@ import '../widgets/guardian_dialog.dart';
 import 'protection_guides_screen.dart';
 import 'permission_auditor_screen.dart';
 import 'package:installed_apps/installed_apps.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
 
 class BomaScreen extends StatefulWidget {
   const BomaScreen({super.key});
@@ -148,7 +150,31 @@ class _BomaScreenState extends State<BomaScreen> with TickerProviderStateMixin {
     _scoreAnimation = Tween<double>(begin: 0, end: 0).animate(
       CurvedAnimation(parent: _scoreController, curve: Curves.easeOutCubic),
     );
-    _checkDeviceSecurity();
+    _loadManualTasks().then((_) {
+      _checkDeviceSecurity();
+    });
+  }
+
+  Future<void> _loadManualTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final username = await AuthService().getDisplayName() ?? 'default';
+    
+    if (!mounted) return;
+    setState(() {
+      for (var i = 0; i < _securityChecklist.length; i++) {
+        final item = _securityChecklist[i];
+        if (item['autoDetect'] == false) {
+          final isCompleted = prefs.getBool('boma_${username}_task_$i') ?? false;
+          item['completed'] = isCompleted;
+        }
+      }
+    });
+  }
+
+  Future<void> _saveManualTask(int index, bool isCompleted) async {
+    final prefs = await SharedPreferences.getInstance();
+    final username = await AuthService().getDisplayName() ?? 'default';
+    await prefs.setBool('boma_${username}_task_$index', isCompleted);
   }
 
   @override
@@ -210,6 +236,13 @@ class _BomaScreenState extends State<BomaScreen> with TickerProviderStateMixin {
     );
     _overallScore = newScore;
     _scoreController.forward(from: 0);
+    _saveOverallBomaScore(newScore);
+  }
+
+  Future<void> _saveOverallBomaScore(int score) async {
+    final prefs = await SharedPreferences.getInstance();
+    final username = await AuthService().getDisplayName() ?? 'default';
+    await prefs.setInt('boma_${username}_score', score);
   }
 
   void _handleItemTap(int index) {
@@ -301,6 +334,7 @@ class _BomaScreenState extends State<BomaScreen> with TickerProviderStateMixin {
                   item['completed'] = !item['completed'];
                   _recalculateScore();
                 });
+                _saveManualTask(index, item['completed']);
               },
             ),
           ),

@@ -91,6 +91,10 @@ const Map<String, Map<String, String>> _translations = {
     'en': 'Logged in offline. Some features may be limited.',
     'sw': 'Umeingia bila mtandao. Baadhi ya huduma zinaweza kuwa na mipaka.',
   },
+  'auth_login_offline': {
+    'en': 'Log in Offline',
+    'sw': 'Ingia Bila Mtandao',
+  },
   'auth_reset_password_title': {
     'en': 'Reset Password',
     'sw': 'Weka upya Nywila',

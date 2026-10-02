@@ -6,6 +6,8 @@ import '../services/api_service.dart';
 import '../widgets/guardian_dialog.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/translations.dart';
+import '../services/agent_history_service.dart';
+import 'package:uuid/uuid.dart';
 
 class AgentScreen extends StatefulWidget {
   const AgentScreen({super.key});
@@ -16,10 +18,14 @@ class AgentScreen extends StatefulWidget {
 
 class _AgentScreenState extends State<AgentScreen>
     with TickerProviderStateMixin {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
-  final List<Map<String, dynamic>> _messages = [];
+  List<Map<String, dynamic>> _messages = [];
   bool _isTyping = false;
+  
+  List<ChatSession> _sessions = [];
+  String _currentSessionId = const Uuid().v4();
 
   late AnimationController _agentGlowController;
   late Animation<double> _agentGlowAnimation;
@@ -39,21 +45,97 @@ class _AgentScreenState extends State<AgentScreen>
       CurvedAnimation(parent: _agentGlowController, curve: Curves.easeInOut),
     );
 
-    // Welcome message
-    _messages.add({
-      'role': 'agent',
-      'content':
-          'Hi! Welcome to **Cyber Mfukoni**. I\'m **The Guardian** — how can I help you today?',
-      'timestamp': DateTime.now(),
+    _loadSessions();
+  }
+
+  Future<void> _loadSessions() async {
+    final sessions = await AgentHistoryService.getSessions();
+    setState(() {
+      _sessions = sessions;
+      if (_sessions.isNotEmpty) {
+        // Load the most recent session
+        _sessions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        _currentSessionId = _sessions.first.id;
+        _messages = _sessions.first.messages;
+      } else {
+        _startNewSession();
+      }
     });
-    _messages.add({
-      'role': 'agent',
-      'content':
-          'I can answer cybersecurity questions, explain scams and threats, guide you on safe practices, '
-          'and help with incident response. What would you like to know?',
-      'timestamp': DateTime.now(),
-      'action': {'label': '🔍  Scan a suspicious message', 'route': 'mulika'},
+  }
+
+  void _startNewSession() {
+    setState(() {
+      _currentSessionId = const Uuid().v4();
+      _messages = [
+        {
+          'role': 'agent',
+          'content':
+              'Hi! Welcome to **Cyber Mfukoni**. I\'m **The Guardian** — how can I help you today?',
+          'timestamp': DateTime.now(),
+        },
+        {
+          'role': 'agent',
+          'content':
+              'I can answer cybersecurity questions, explain scams and threats, guide you on safe practices, '
+              'and help with incident response. What would you like to know?',
+          'timestamp': DateTime.now(),
+          'action': {'label': '🔍  Scan a suspicious message', 'route': 'mulika'},
+        }
+      ];
     });
+    _saveCurrentSession();
+  }
+
+  Future<void> _saveCurrentSession() async {
+    if (_messages.isEmpty) return;
+    
+    int index = _sessions.indexWhere((s) => s.id == _currentSessionId);
+    String title = "New Chat";
+    
+    // Auto-generate title from first user message
+    final firstUserMsg = _messages.cast<Map<String, dynamic>?>().firstWhere((m) => m?['role'] == 'user', orElse: () => null);
+    if (firstUserMsg != null) {
+      String content = firstUserMsg['content'] as String;
+      title = content.length > 30 ? '${content.substring(0, 30)}...' : content;
+    }
+
+    if (index != -1) {
+      _sessions[index].messages = _messages;
+      _sessions[index].title = title;
+    } else {
+      _sessions.add(ChatSession(
+        id: _currentSessionId,
+        title: title,
+        createdAt: DateTime.now(),
+        messages: _messages,
+      ));
+    }
+    
+    await AgentHistoryService.saveSessions(_sessions);
+  }
+
+  void _switchSession(String id) {
+    final session = _sessions.firstWhere((s) => s.id == id);
+    setState(() {
+      _currentSessionId = id;
+      _messages = session.messages;
+    });
+    _scaffoldKey.currentState?.closeDrawer();
+    _scrollToBottom();
+  }
+
+  Future<void> _deleteSession(String id) async {
+    await AgentHistoryService.deleteSession(id);
+    _sessions.removeWhere((s) => s.id == id);
+    if (_currentSessionId == id) {
+      if (_sessions.isNotEmpty) {
+        _switchSession(_sessions.first.id);
+      } else {
+        _startNewSession();
+      }
+    } else {
+      setState(() {});
+    }
   }
 
   @override
@@ -137,6 +219,7 @@ class _AgentScreenState extends State<AgentScreen>
           });
           _isTyping = false;
         });
+        _saveCurrentSession();
         _scrollToBottom();
         return;
       }
@@ -154,6 +237,7 @@ class _AgentScreenState extends State<AgentScreen>
       });
       _isTyping = false;
     });
+    _saveCurrentSession();
     _scrollToBottom();
   }
 
@@ -219,7 +303,9 @@ class _AgentScreenState extends State<AgentScreen>
     final bool isWide = size.width > 900;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: kBg,
+      drawer: _buildHistoryDrawer(),
       body: Stack(
         children: [
           // Background photo
@@ -380,6 +466,11 @@ class _AgentScreenState extends State<AgentScreen>
       ),
       child: Row(
         children: [
+          IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white70),
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          const SizedBox(width: 8),
           AnimatedBuilder(
             animation: _agentGlowAnimation,
             builder: (context, child) {
@@ -458,14 +549,7 @@ class _AgentScreenState extends State<AgentScreen>
               size: 20,
             ),
             onPressed: () {
-              setState(() {
-                _messages.clear();
-                _messages.add({
-                  'role': 'agent',
-                  'content': context.tr('chat_cleared'),
-                  'timestamp': DateTime.now(),
-                });
-              });
+              _deleteSession(_currentSessionId);
             },
             tooltip: context.tr('clear_chat'),
           ),
@@ -797,6 +881,84 @@ class _AgentScreenState extends State<AgentScreen>
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoryDrawer() {
+    return Drawer(
+      backgroundColor: const Color(0xFF101317),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.history, color: kCyberGreen),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Chat History',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(color: Colors.white.withOpacity(0.1)),
+            ListTile(
+              leading: const Icon(Icons.add, color: Colors.white),
+              title: Text('New Chat', style: GoogleFonts.inter(color: Colors.white)),
+              onTap: () {
+                _startNewSession();
+                _scaffoldKey.currentState?.closeDrawer();
+              },
+            ),
+            Divider(color: Colors.white.withOpacity(0.1)),
+            Expanded(
+              child: _sessions.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No recent chats',
+                        style: GoogleFonts.inter(color: Colors.white54),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _sessions.length,
+                      itemBuilder: (context, index) {
+                        final session = _sessions[index];
+                        final isSelected = session.id == _currentSessionId;
+                        return ListTile(
+                          selected: isSelected,
+                          selectedTileColor: kCyberGreen.withOpacity(0.1),
+                          leading: Icon(
+                            Icons.chat_bubble_outline,
+                            color: isSelected ? kCyberGreen : Colors.white54,
+                            size: 20,
+                          ),
+                          title: Text(
+                            session.title,
+                            style: GoogleFonts.inter(
+                              color: isSelected ? kCyberGreen : Colors.white,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton(
+                            icon: Icon(Icons.delete_outline, color: Colors.white.withOpacity(0.3), size: 18),
+                            onPressed: () => _deleteSession(session.id),
+                          ),
+                          onTap: () => _switchSession(session.id),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );

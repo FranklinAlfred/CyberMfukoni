@@ -4,6 +4,7 @@ import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/translations.dart';
+import '../services/activity_service.dart';
 
 import '../services/api_service.dart';
 
@@ -89,6 +90,7 @@ class _SmartScanScreenState extends State<SmartScanScreen> {
             _scanComplete = true;
             _progress = 1.0;
           });
+          ActivityService().logActivity(Icons.verified_user, _kNeonGreen, 'Scan finished: Safe');
           backendSuccess = true;
         } else {
           debugPrint("Backend returned ${response.statusCode}: ${response.body}");
@@ -146,6 +148,7 @@ class _SmartScanScreenState extends State<SmartScanScreen> {
           _scanComplete = true;
           _progress = 1.0;
         });
+        ActivityService().logActivity(Icons.verified_user, _kNeonGreen, 'Scan finished (Local): Safe');
       }
     } catch (e) {
       debugPrint("Scan failed: $e");

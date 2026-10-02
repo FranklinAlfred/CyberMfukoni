@@ -9,7 +9,8 @@ import 'secure_shredder_screen.dart';
 import 'parental_controls_screen.dart';
 
 class SecureModulesScreen extends StatelessWidget {
-  const SecureModulesScreen({super.key});
+  final ValueChanged<int>? onNavigate;
+  const SecureModulesScreen({super.key, this.onNavigate});
 
   static List<Map<String, dynamic>> _getModules(BuildContext context) => [
     {
@@ -63,7 +64,13 @@ class SecureModulesScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (onNavigate != null) {
+              onNavigate!(3);
+            } else {
+              if (Navigator.canPop(context)) Navigator.pop(context);
+            }
+          },
         ),
         title: Text(
           context.tr('mod_secure_modules'),

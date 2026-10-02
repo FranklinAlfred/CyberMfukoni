@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/translations.dart';
+import '../services/activity_service.dart';
 
 // Theme constants
 const Color _kDeepBlack = Color(0xFF000000);
@@ -218,6 +219,7 @@ class _SecureShredderScreenState extends State<SecureShredderScreen> {
       _selectedFiles = [];
       _isShredding = false;
     });
+    ActivityService().logActivity(Icons.delete_forever, _kCriticalRed, 'Shredded $totalFiles files');
   }
 
   @override

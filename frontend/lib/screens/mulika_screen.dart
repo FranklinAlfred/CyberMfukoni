@@ -1481,11 +1481,15 @@ class _MulikaScreenState extends State<MulikaScreen>
                                 ],
                               ),
                             ),
-                            CircularProgressIndicator(
-                              value: score / 100,
-                              strokeWidth: 8,
-                              backgroundColor: Colors.white10,
-                              color: ratingColor,
+                            SizedBox(
+                              width: 80,
+                              height: 80,
+                              child: CircularProgressIndicator(
+                                value: score / 100,
+                                strokeWidth: 8,
+                                backgroundColor: Colors.white10,
+                                color: ratingColor,
+                              ),
                             ),
                             Text(
                               '$score%',

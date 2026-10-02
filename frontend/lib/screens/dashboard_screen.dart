@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
@@ -24,6 +26,7 @@ import '../utils/auth_helper.dart';
 import '../utils/translations.dart';
 import '../providers/locale_provider.dart';
 import '../widgets/guardian_dialog.dart';
+import '../services/activity_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigate;
@@ -53,9 +56,13 @@ class _ModuleDef {
 class _DashboardScreenState extends State<DashboardScreen>
     with TickerProviderStateMixin {
   late final AnimationController _pulseController;
-  int _cyberSafetyScore = 85;
+  int _cyberSafetyScore = 30; // Base device security
   String _username = "Agent";
   String? _hoveredImage;
+  Timer? _scoreTimer;
+  int _bomaScore = 0;
+  int _bomaContribution = 0;
+  int _chonjoContribution = 0;
 
   // One GlobalKey per module tile so we can look up each tile's live
   // on-screen RenderBox (position/size) during a touch drag, regardless of
@@ -128,6 +135,31 @@ class _DashboardScreenState extends State<DashboardScreen>
       duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
     _fetchProfile();
+    ActivityService().loadActivities();
+    
+    _scoreTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _loadBomaScore();
+    });
+    _loadBomaScore();
+  }
+
+  Future<void> _loadBomaScore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final boma = prefs.getInt('boma_${_username}_score') ?? 0;
+    final bomaContrib = (boma / 100 * 20).toInt();
+
+    if (!mounted) return;
+    if (_bomaScore != boma || _bomaContribution != bomaContrib) {
+      setState(() {
+        _bomaScore = boma;
+        _bomaContribution = bomaContrib;
+        _recalcOverallScore();
+      });
+    }
+  }
+
+  void _recalcOverallScore() {
+    _cyberSafetyScore = 30 + _bomaContribution + _chonjoContribution;
   }
 
   Future<void> _fetchProfile() async {
@@ -138,7 +170,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         setState(() {
           _username = data['username'] ?? "Agent";
           final score = (data['total_score'] as num?)?.toInt() ?? 0;
-          _cyberSafetyScore = 40 + (score / 100).clamp(0, 60).toInt();
+          _chonjoContribution = (score / 20).round().clamp(0, 50).toInt();
+          _recalcOverallScore();
         });
       }
     } catch (e) {
@@ -148,6 +181,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void dispose() {
+    _scoreTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
@@ -643,16 +677,16 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
               const SizedBox(height: 6),
               _buildScoreBreakdownItem(
-                Icons.vpn_key,
-                context.tr('dashboard_vault_setup'),
-                '10/20',
+                Icons.security,
+                context.tr('module_boma', fallback: 'Boma Score'),
+                '$_bomaContribution/20',
                 const Color(0xFFFFC107),
               ),
               const SizedBox(height: 6),
               _buildScoreBreakdownItem(
                 Icons.school,
                 context.tr('dashboard_chonjo_xp'),
-                '${(_cyberSafetyScore > 40) ? (_cyberSafetyScore - 40) : 0}/50',
+                '$_chonjoContribution/50',
                 const Color(0xFF00FF40),
               ),
             ],
@@ -811,57 +845,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ─── Activity Log ─────────────────────────────────────────────────────────
   Widget _buildActivityLog() {
-    final List<Map<String, dynamic>> activityLogs = [
-      {
-        'icon': Icons.dns,
-        'color': const Color(0xFF00E5FF),
-        'text': 'DNS filter activated',
-        'time': 'Just now',
-      },
-      {
-        'icon': Icons.verified_user,
-        'color': const Color(0xFF00FF40),
-        'text': 'Scan finished: Safe',
-        'time': '12 min ago',
-      },
-      {
-        'icon': Icons.lock_reset,
-        'color': const Color(0xFF7C4DFF),
-        'text': 'Password changed',
-        'time': '1h ago',
-      },
-      {
-        'icon': Icons.schedule,
-        'color': const Color(0xFFFFC107),
-        'text': 'Event "Network Audit" is due in 3 mins',
-        'time': '1h ago',
-      },
-      {
-        'icon': Icons.warning_amber,
-        'color': const Color(0xFFFF5252),
-        'text': 'Event "Phishing Test" missed',
-        'time': '3h ago',
-      },
-      {
-        'icon': Icons.phone_android,
-        'color': const Color(0xFF00FF40),
-        'text': 'Device scanned — No threats found',
-        'time': '5h ago',
-      },
-      {
-        'icon': Icons.block,
-        'color': const Color(0xFFFFA726),
-        'text': 'Ad-tracker blocked (3 domains)',
-        'time': '8h ago',
-      },
-      {
-        'icon': Icons.enhanced_encryption,
-        'color': const Color(0xFF69F0AE),
-        'text': 'Vault updated — 2 files encrypted',
-        'time': 'Yesterday',
-      },
-    ];
-
     return Container(
       height: 250, // Fixed height for ~3.5 items
       decoration: BoxDecoration(
@@ -871,43 +854,69 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: ListView.separated(
-          padding: EdgeInsets.zero,
-          physics: const BouncingScrollPhysics(),
-          itemCount: activityLogs.length,
-          separatorBuilder: (_, __) => Divider(
-            height: 1,
-            color: Colors.white.withOpacity(0.05),
-            indent: 70,
-            endIndent: 24,
-          ),
-          itemBuilder: (context, index) {
-            final log = activityLogs[index];
-            return ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 8,
-              ),
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: (log['color'] as Color).withOpacity(0.1),
-                  shape: BoxShape.circle,
+        child: ListenableBuilder(
+          listenable: ActivityService(),
+          builder: (context, child) {
+            final activityLogs = ActivityService().activities;
+            if (activityLogs.isEmpty) {
+              return Center(
+                child: Text(
+                  'No recent activity',
+                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),
                 ),
-                child: Icon(log['icon'], color: log['color'], size: 20),
+              );
+            }
+            return ListView.separated(
+              padding: EdgeInsets.zero,
+              physics: const BouncingScrollPhysics(),
+              itemCount: activityLogs.length,
+              separatorBuilder: (_, __) => Divider(
+                height: 1,
+                color: Colors.white.withOpacity(0.05),
+                indent: 70,
+                endIndent: 24,
               ),
-              title: Text(
-                log['text'],
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              trailing: Text(
-                log['time'],
-                style: GoogleFonts.inter(color: Colors.white54, fontSize: 11),
-              ),
+              itemBuilder: (context, index) {
+                final log = activityLogs[index];
+                final timeDiff = DateTime.now().difference(log.timestamp);
+                String timeStr;
+                if (timeDiff.inMinutes < 1) {
+                  timeStr = 'Just now';
+                } else if (timeDiff.inHours < 1) {
+                  timeStr = '${timeDiff.inMinutes} min ago';
+                } else if (timeDiff.inDays < 1) {
+                  timeStr = '${timeDiff.inHours}h ago';
+                } else {
+                  timeStr = '${timeDiff.inDays}d ago';
+                }
+
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
+                  ),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: log.color.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(log.icon, color: log.color, size: 20),
+                  ),
+                  title: Text(
+                    log.text,
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  trailing: Text(
+                    timeStr,
+                    style: GoogleFonts.inter(color: Colors.white54, fontSize: 11),
+                  ),
+                );
+              },
             );
           },
         ),

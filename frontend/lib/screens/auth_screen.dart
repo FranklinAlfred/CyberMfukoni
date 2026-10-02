@@ -505,7 +505,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     onPressed: _isLoading ? null : _submitOffline,
                     icon: const Icon(Icons.wifi_off_rounded, size: 16),
                     label: Text(
-                      context.tr('auth_login_offline') ?? 'Log in Offline',
+                      context.tr('auth_login_offline', fallback: 'Log in Offline'),
                       style: TextStyle(
                         fontSize: isDesktop ? 13.5 : 12.5,
                         fontWeight: FontWeight.bold,

@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import 'activity_service.dart';
+import 'package:flutter/material.dart';
 
 // Conditional imports for native-only dart:io
 import 'vault_storage_native.dart' if (dart.library.html) 'vault_storage_web.dart' as platform;
@@ -20,8 +23,15 @@ class VaultStorageService {
   static const _kFiles = 'vault_files';
 
   // ─── GENERIC JSON LIST HELPERS ─────────────────────────
+  static Future<String> _getUserPrefix() async {
+    final prefs = await SharedPreferences.getInstance();
+    final username = prefs.getString('cached_display_name') ?? 'guest';
+    return '${username}_';
+  }
+
   static Future<List<Map<String, dynamic>>> _getList(String key) async {
-    final data = await _storage.read(key: key);
+    final prefix = await _getUserPrefix();
+    final data = await _storage.read(key: '$prefix$key');
     if (data == null || data.isEmpty) return [];
     try {
       final List<dynamic> decoded = json.decode(data);
@@ -32,7 +42,8 @@ class VaultStorageService {
   }
 
   static Future<void> _saveList(String key, List<Map<String, dynamic>> list) async {
-    await _storage.write(key: key, value: json.encode(list));
+    final prefix = await _getUserPrefix();
+    await _storage.write(key: '$prefix$key', value: json.encode(list));
   }
 
   // ─── PASSWORDS ──────────────────────────────────────────
@@ -42,6 +53,7 @@ class VaultStorageService {
     item['id'] = _uuid.v4();
     list.add(item);
     await _saveList(_kPasswords, list);
+    ActivityService().logActivity(Icons.lock, const Color(0xFF00FF40), 'Vault updated: new password saved');
   }
   static Future<void> deletePassword(String id) async {
     final list = await getPasswords();
@@ -119,13 +131,15 @@ class VaultStorageService {
 
       if (kIsWeb) {
         // Web: store bytes as base64 in secure storage
+        final prefix = await _getUserPrefix();
         final base64Data = base64Encode(bytes);
-        await _storage.write(key: 'vault_file_$id', value: base64Data);
+        final storageKey = '${prefix}vault_file_$id';
+        await _storage.write(key: storageKey, value: base64Data);
 
         final metadata = {
           'id': id,
           'original_name': fileName,
-          'storage_key': 'vault_file_$id',
+          'storage_key': storageKey,
           'size': bytes.length,
           'timestamp': DateTime.now().toIso8601String(),
         };
@@ -139,6 +153,7 @@ class VaultStorageService {
           list.add(metadata);
           await _saveList(_kFiles, list);
         }
+        ActivityService().logActivity(Icons.enhanced_encryption, const Color(0xFF69F0AE), 'Vault updated: file encrypted');
       } else {
         // Native: use filesystem
         await platform.addHiddenFileNative(
@@ -152,6 +167,7 @@ class VaultStorageService {
           savePhotos: (list) => _saveList(_kPhotos, list),
           saveFiles: (list) => _saveList(_kFiles, list),
         );
+        ActivityService().logActivity(Icons.enhanced_encryption, const Color(0xFF69F0AE), 'Vault updated: file encrypted');
       }
     } catch (e) {
       print('Error hiding file: $e');
@@ -160,7 +176,8 @@ class VaultStorageService {
 
   /// Get file bytes by ID (for displaying on web)
   static Future<Uint8List?> getFileBytes(String id) async {
-    final storageKey = 'vault_file_$id';
+    final prefix = await _getUserPrefix();
+    final storageKey = '${prefix}vault_file_$id';
     final base64Data = await _storage.read(key: storageKey);
     if (base64Data == null) return null;
     return base64Decode(base64Data);
@@ -177,7 +194,8 @@ class VaultStorageService {
     try {
       if (kIsWeb) {
         // Web: just delete from secure storage
-        final storageKey = item['storage_key'] ?? 'vault_file_$id';
+        final prefix = await _getUserPrefix();
+        final storageKey = item['storage_key'] ?? '${prefix}vault_file_$id';
         if (!deleteCompletely) {
           final base64Data = await _storage.read(key: storageKey);
           if (base64Data != null) {

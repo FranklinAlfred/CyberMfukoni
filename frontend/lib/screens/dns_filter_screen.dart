@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/translations.dart';
+import '../services/activity_service.dart';
 
 const Color _kDeepBlack = Color(0xFF000000);
 const Color _kSlateBlue = Color(0xFF222633);
@@ -56,8 +57,10 @@ class _DnsFilterScreenState extends State<DnsFilterScreen> {
     try {
       if (_isVpnRunning) {
         await platform.invokeMethod('stopVpn');
+        ActivityService().logActivity(Icons.shield_outlined, Colors.orange, 'DNS filter disabled');
       } else {
         await platform.invokeMethod('startVpn');
+        ActivityService().logActivity(Icons.dns, _kNeonGreen, 'DNS filter activated');
       }
       // Wait a moment for native side to update state
       await Future.delayed(const Duration(milliseconds: 500));
